@@ -49,7 +49,7 @@ public class TestSample {
                 csvDataSet(new TestResource("users.csv")),
                 httpCache().disable(),
                 threadGroup()
-                        .rampTo(5, Duration.ofSeconds(10)).holdIterating(1)
+                        .rampTo(5, Duration.ofSeconds(3)).holdIterating(1)
                         .children(
                         httpDefaults()
                                 .proxy("http://127.0.0.1:8888"),
@@ -67,7 +67,7 @@ public class TestSample {
                                                         "<input type=\"hidden\" name=\"csrfmiddlewaretoken\" value=\"(.+?)\"></form>"),
                                                 regexExtractor("CSRF_TMP_TOKEN", "Set-Cookie: csrftoken=(.+?); expires")
                                         ),
-                                //ifController(s -> (s.vars.get("CSRF_MIDDLEWARE_TOKEN") != null) && (s.vars.get("tmpCsrfToken") != null),
+                                ifController(s -> ((s.vars.get("CSRF_MIDDLEWARE_TOKEN") != null) /*&& (s.vars.get("CSRF_TMP_TOKEN") != null)*/),
                                 httpSampler("Authorization", helpDesk + "/login/")
                                         .post("username=${USER}&password=${PASS}&csrfmiddlewaretoken=${CSRF_MIDDLEWARE_TOKEN}",
                                                 ContentType.APPLICATION_FORM_URLENCODED)
@@ -75,10 +75,10 @@ public class TestSample {
                                         .children(
                                                 regexExtractor("CSRF_TOKEN", "Set-Cookie: csrftoken=(.+?); expires")
                                         )
-                                //)
-                                ,
-                                httpSampler("Tickets page", helpDesk + "/tickets/")
-                                        .header("Cookie", "csrftoken=${CSRF_TOKEN}")
+                                )
+//                                ,
+//                                httpSampler("Tickets page", helpDesk + "/tickets/")
+//                                        .header("Cookie", "csrftoken=${CSRF_TOKEN}")
                         )
                 ),
                 influxDbListener("http://127.0.0.1:8086/write?db=jmeter")
