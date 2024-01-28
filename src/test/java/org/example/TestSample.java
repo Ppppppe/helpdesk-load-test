@@ -48,6 +48,7 @@ public class TestSample {
         TestPlanStats stats = testPlan(
                 csvDataSet(new TestResource("users.csv")),
                 httpCache().disable(),
+                httpCookies(),
                 threadGroup()
                         .rampTo(5, Duration.ofSeconds(3)).holdIterating(1)
                         .children(
@@ -64,26 +65,18 @@ public class TestSample {
                                         .method(HTTPConstants.GET)
                                         .children(
                                                 regexExtractor("CSRF_MIDDLEWARE_TOKEN",
-                                                        "<input type=\"hidden\" name=\"csrfmiddlewaretoken\" value=\"(.+?)\"></form>"),
-                                                regexExtractor("CSRF_TMP_TOKEN", "Set-Cookie: csrftoken=(.+?); expires")
+                                                        "<input type=\"hidden\" name=\"csrfmiddlewaretoken\" value=\"(.+?)\"></form>")
                                         ),
-                                ifController(s -> ((s.vars.get("CSRF_MIDDLEWARE_TOKEN") != null) /*&& (s.vars.get("CSRF_TMP_TOKEN") != null)*/),
+                                ifController(s -> (s.vars.get("CSRF_MIDDLEWARE_TOKEN") != null),
                                 httpSampler("Authorization", helpDesk + "/login/")
                                         .post("username=${USER}&password=${PASS}&csrfmiddlewaretoken=${CSRF_MIDDLEWARE_TOKEN}",
                                                 ContentType.APPLICATION_FORM_URLENCODED)
-                                        .header("Cookie", "csrftoken=${CSRF_TMP_TOKEN}")
-                                        .children(
-                                                regexExtractor("CSRF_TOKEN", "Set-Cookie: csrftoken=(.+?); expires")
-                                        )
                                 )
-//                                ,
-//                                httpSampler("Tickets page", helpDesk + "/tickets/")
-//                                        .header("Cookie", "csrftoken=${CSRF_TOKEN}")
                         )
                 ),
                 influxDbListener("http://127.0.0.1:8086/write?db=jmeter")
         ).run();
-        assertThat(stats.overall().sampleTimePercentile99()).isLessThan(Duration.ofSeconds(10));
+        assertThat(stats.overall().sampleTimePercentile99()).isLessThan(Duration.ofSeconds(5));
     }
 }
 
