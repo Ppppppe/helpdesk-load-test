@@ -1,6 +1,7 @@
 package org.example;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static us.abstracta.jmeter.javadsl.JmeterDsl.*;
+import static us.abstracta.jmeter.javadsl.JmeterDsl.httpSampler;
 import static us.abstracta.jmeter.javadsl.dashboard.DashboardVisualizer.dashboardVisualizer;
 import org.apache.http.entity.ContentType;
 
@@ -38,7 +39,7 @@ public class TestSample {
 
     @BeforeEach
     public void setUp() {
-        System.out.println("<===================================>");
+        System.out.println();
     }
 
     @Test
@@ -53,7 +54,9 @@ public class TestSample {
                         .rampTo(5, Duration.ofSeconds(3)).holdIterating(1)
                         .children(
                         httpDefaults()
-                                .proxy("http://127.0.0.1:8888"),
+                                .proxy("http://127.0.0.1:8888")
+                                .connectionTimeout(Duration.ofSeconds(1))
+                                .responseTimeout(Duration.ofSeconds(3)),
                         httpHeaders()
                                 .header("Accept-Encoding", "gzip, deflate")
                                 .header("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
@@ -72,6 +75,27 @@ public class TestSample {
                                         .post("username=${USER}&password=${PASS}&csrfmiddlewaretoken=${CSRF_MIDDLEWARE_TOKEN}",
                                                 ContentType.APPLICATION_FORM_URLENCODED)
                                 )
+                                //  redirect /login/  -->  /  -->  /tickets/
+                        ),
+                        transaction("Script 2: Create new ticket",
+                                httpSampler("Open submission form", helpDesk + "/tickets/submit/")
+                                        .children(
+                                                regexExtractor("CSRF_MIDDLEWARE_TOKEN_TICKET",
+                                                        "<input type=\"hidden\" name=\"csrfmiddlewaretoken\" value=\"(.+?)\">[\\s]*</form>"),
+                                                regexExtractor("USER_ID_IN_DROPDOWN",
+                                                        "<option value=\"(\\d+?)\">${USER}</option>")
+                                        )
+                                ,
+                                httpSampler("Send submission form", helpDesk + "/tickets/submit/")
+                                        .method(HTTPConstants.POST)
+                                        .bodyPart("csrfmiddlewaretoken", "${CSRF_MIDDLEWARE_TOKEN_TICKET}", ContentType.MULTIPART_FORM_DATA)
+                                        .bodyPart("queue", "2", ContentType.MULTIPART_FORM_DATA)
+                                        .bodyPart("title", "Test title", ContentType.MULTIPART_FORM_DATA)
+                                        .bodyPart("body", "Test body", ContentType.MULTIPART_FORM_DATA)
+                                        .bodyPart("priority", "3", ContentType.MULTIPART_FORM_DATA)
+                                        .bodyPart("assigned_to", "${USER_ID_IN_DROPDOWN}", ContentType.MULTIPART_FORM_DATA)
+                                        .bodyPart("submitter_email", "someemail@test6123.com", ContentType.MULTIPART_FORM_DATA)
+                                        .bodyPart("due_date", "2024-05-12 12:34:56", ContentType.MULTIPART_FORM_DATA)
                         )
                 ),
                 influxDbListener("http://127.0.0.1:8086/write?db=jmeter")
