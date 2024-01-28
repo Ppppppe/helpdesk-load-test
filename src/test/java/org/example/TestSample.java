@@ -2,11 +2,14 @@ package org.example;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static us.abstracta.jmeter.javadsl.JmeterDsl.*;
 import static us.abstracta.jmeter.javadsl.JmeterDsl.httpSampler;
-import static us.abstracta.jmeter.javadsl.dashboard.DashboardVisualizer.dashboardVisualizer;
+
 import org.apache.http.entity.ContentType;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Properties;
 
 import org.apache.jmeter.protocol.http.util.HTTPConstants;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +18,8 @@ import us.abstracta.jmeter.javadsl.core.TestPlanStats;
 import us.abstracta.jmeter.javadsl.util.TestResource;
 
 public class TestSample {
+
+    private Properties prop;
 
     @Test
     public void oneSamplerTest() throws IOException {
@@ -39,22 +44,34 @@ public class TestSample {
 
     @BeforeEach
     public void setUp() {
-        System.out.println();
+        prop = new Properties();
+        String fileName = "src/test/resources/app.config";
+        try (FileInputStream fis = new FileInputStream(fileName)) {
+            prop.load(fis);
+        } catch (FileNotFoundException e) {
+            System.out.println("Configuration file not found!");
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
     public void helpdeskLoadTest() throws IOException {
-        String helpDesk = "http://192.168.1.59:23232";
+//        String helpDesk = "http://192.168.1.59:23232";
+        String helpDesk = prop.getProperty("helpdesk.address");
+        int userCount = Integer.parseInt(prop.getProperty("user.count"));
+        System.out.println(helpDesk);
         String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
         TestPlanStats stats = testPlan(
-                csvDataSet(new TestResource("users.csv")),
+                csvDataSet(new TestResource(prop.getProperty("users.credentials"))),
                 httpCache().disable(),
                 httpCookies(),
                 threadGroup()
-                        .rampTo(5, Duration.ofSeconds(3)).holdIterating(1)
+                        .rampTo(userCount, Duration.ofSeconds(3)).holdIterating(1)
                         .children(
                         httpDefaults()
-                                .proxy("http://127.0.0.1:8888")
+                                .proxy(prop.getProperty("fiddler.proxy"))
                                 .connectionTimeout(Duration.ofSeconds(1))
                                 .responseTimeout(Duration.ofSeconds(3)),
                         httpHeaders()
