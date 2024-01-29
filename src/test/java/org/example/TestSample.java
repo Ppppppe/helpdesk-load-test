@@ -21,27 +21,6 @@ public class TestSample {
 
     private Properties prop;
 
-    @Test
-    public void oneSamplerTest() throws IOException {
-        String helpDesk = "http://192.168.1.59:23232";
-        String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-        TestPlanStats stats = testPlan(
-                httpCache().disable(),
-                threadGroup(1, 1,
-                        httpHeaders()
-                                .header("Accept-Encoding", "gzip, deflate")
-                                .header("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
-                                .header("User-Agent", userAgent),
-                        transaction("Script 1: Authorization user",
-                                httpSampler("Main page", helpDesk + "/")
-                                        .proxy("http://127.0.0.1:8888")
-                                        .method(HTTPConstants.GET)
-                        )
-                )
-                ,influxDbListener("http://127.0.0.1:8086/write?db=jmeter")
-        ).run();
-    }
-
     @BeforeEach
     public void setUp() {
         prop = new Properties();
@@ -58,7 +37,6 @@ public class TestSample {
 
     @Test
     public void helpdeskLoadTest() throws IOException {
-
         String helpDesk = prop.getProperty("helpdesk.address");
         int userCount = Integer.parseInt(prop.getProperty("user.count"));
         String influxDb = prop.getProperty("influxDb.address");
@@ -91,7 +69,7 @@ public class TestSample {
                                         ),
                                 ifController(s -> (s.vars.get("CSRF_MIDDLEWARE_TOKEN") != null),
                                 httpSampler("Authorization", "/login/")
-                                        .post("username=${USER}&password=${PASS}&csrfmiddlewaretoken=${CSRF_MIDDLEWARE_TOKEN}",
+                                        .post("username=${USER}&" + "password=${PASS}&" + "csrfmiddlewaretoken=${CSRF_MIDDLEWARE_TOKEN}",
                                                 ContentType.APPLICATION_FORM_URLENCODED)
                                 )
                                 //  redirect /login/  -->  /  -->  /tickets/
@@ -139,6 +117,21 @@ public class TestSample {
                                         .bodyPart("new_status", "${MOD_STATUS_ID}", ContentType.MULTIPART_FORM_DATA)
                                         .bodyPart("comment", "Some new comment", ContentType.MULTIPART_FORM_DATA)
 
+                        ),
+                        transaction("Script 4: Delete ticket",
+                                httpSampler("Open Tickets page", "/tickets/")
+                                        .children(
+                                                regexExtractor("CSRF_MIDDLEWARE_TOKEN",
+                                                        "<input type=\"hidden\" name=\"csrfmiddlewaretoken\" value=\"(.+?)\">[\\s]*</form>")
+                                        ),
+                                httpSampler("Delete selected ticket", "/tickets/update/")
+                                        .post("csrfmiddlewaretoken=${CSRF_MIDDLEWARE_TOKEN}&" +
+                                                "ticketTable_length=25&" +
+                                                "ticket_id=${TICKET_ID}&" + "action=delete",
+                                                ContentType.APPLICATION_FORM_URLENCODED)
+                        ),
+                        transaction("Script 5: Logging out",
+                                httpSampler("Log out", "/logout/")
                         )
                 ),
                 influxDbListener(influxDb + "/write?db=jmeter")
